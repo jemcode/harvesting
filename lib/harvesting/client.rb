@@ -1,12 +1,12 @@
 # frozen_string_literal: true
+
 require "http"
 require "json"
 
 module Harvesting
-
   # A client for the Harvest API (version 2.0)
   class Client
-    DEFAULT_HOST = "https://api.harvestapp.com/v2"
+    DEFAULT_HOST = "https://api.harvestapp.com/v2".freeze
 
     attr_accessor :access_token, :account_id
 
@@ -17,12 +17,12 @@ module Harvesting
     # @param [Hash] opts the options to create an API client
     # @option opts [String] :access_token Harvest access token
     # @option opts [String] :account_id Harvest account id
-    def initialize(access_token: ENV['HARVEST_ACCESS_TOKEN'], account_id: ENV['HARVEST_ACCOUNT_ID'])
+    def initialize(access_token: ENV["HARVEST_ACCESS_TOKEN"], account_id: ENV["HARVEST_ACCOUNT_ID"])
       @access_token = access_token.to_s
       @account_id = account_id.to_s
 
-      if @account_id.length == 0 || @access_token.length == 0
-        raise ArgumentError.new("Access token and account id are required. Access token: '#{@access_token}'. Account ID: '#{@account_id}'.")
+      if @account_id.empty? || @access_token.empty?
+        raise ArgumentError, "Access token and account id are required. Access token: '#{@access_token}'. Account ID: '#{@account_id}'."
       end
     end
 
@@ -65,11 +65,9 @@ module Harvesting
       Harvesting::Models::Users.new(get("users", opts), opts, client: self)
     end
 
-    # @return [Array<Harvesting::Models::Invoice>]
-    def invoices
-      get("invoices")["invoices"].map do |result|
-        Harvesting::Models::Invoice.new(result, client: self)
-      end
+    # @return [Array<Harvesting::Models::Invoices>]
+    def invoices(opts = {})
+      Harvesting::Models::Invoices.new(get("invoices", opts), opts, client: self)
     end
 
     # @return [Harvesting::Models::ProjectUserAssignments]
@@ -120,6 +118,7 @@ module Harvesting
       uri = URI(url)
       response = http_response(:delete, uri)
       raise UnprocessableRequest(response.to_s) unless response.code.to_i == 200
+
       JSON.parse(response.body)
     end
 
@@ -130,7 +129,7 @@ module Harvesting
     # @return [Hash]
     def get(path, opts = {})
       url = "#{DEFAULT_HOST}/#{path}"
-      url += "?#{opts.map {|k, v| "#{k}=#{v}"}.join("&")}" if opts.any?
+      url += "?#{opts.map { |k, v| "#{k}=#{v}" }.join("&")}" if opts.any?
       uri = URI(url)
       response = http_response(:get, uri)
       JSON.parse(response.body)
@@ -145,13 +144,11 @@ module Harvesting
                   "Authorization" => "Bearer #{@access_token}",
                   "Harvest-Account-ID" => @account_id]
       params = {}
-      if opts[:body]
-        params[:json] = opts[:body]
-      end
+      params[:json] = opts[:body] if opts[:body]
       response = http.send(method, uri, params)
 
-      raise Harvesting::AuthenticationError.new(response.to_s) if auth_error?(response)
-      raise Harvesting::UnprocessableRequest.new(response.to_s) if response.code.to_i == 422
+      raise Harvesting::AuthenticationError, response.to_s if auth_error?(response)
+      raise Harvesting::UnprocessableRequest, response.to_s if response.code.to_i == 422
 
       response
     end
